@@ -8,6 +8,7 @@ const HospitalSchema = new mongoose.Schema({
     address: { type: String, required: true },
     licenseNumber: { type: String, required: true },
     publicKey: { type: String, required: true },
+    publicAddress:{ type: String, required: true },
     privateKey: { type: String, required: true }, // Encrypted private key
     password: { type: String, required: true }
 });

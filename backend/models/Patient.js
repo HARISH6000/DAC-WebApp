@@ -9,6 +9,7 @@ const PatientSchema = new mongoose.Schema({
     dateOfBirth: { type: String, required: true },
     bloodGroup: { type: String, required: true },
     publicKey: { type: String, required: true },
+    publicAddress:{ type: String, required: true },
     privateKey: { type: String, required: true }, // Encrypted private key
     password: { type: String, required: true }
 });

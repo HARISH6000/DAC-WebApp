@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWallet } from './WalletContext';
+import { useContracts } from './ContractContext';
 import axios from 'axios';
 import { Buffer } from 'buffer';
 
 const UploadFile = () => {
     const { wallet, token } = useWallet();
+    const { contracts } = useContracts();
     const navigate = useNavigate();
     const [role, setRole] = useState(null);
     const [file, setFile] = useState(null);
@@ -13,9 +15,10 @@ const UploadFile = () => {
     const [fileHash, setFileHash] = useState('');
     const [aesKey, setAesKey] = useState('');
     const [patients, setPatients] = useState([]);
-    const [selectedPatient, setSelectedPatient] = useState('');
+    const [selectedPatient, setSelectedPatient] = useState({});
     const [loading, setLoading] = useState(false);
     const [encryptedFile, setEncryptedFile] = useState(null);
+    const [errorMessage, setErrorMessage] = useState(''); // New state for error messages
 
     useEffect(() => {
         const fetchRoleAndPatients = async () => {
@@ -33,11 +36,11 @@ const UploadFile = () => {
                         headers: { Authorization: `Bearer ${token}` }
                     });
                     setPatients(patientsRes.data);
-                    if (patientsRes.data.length > 0) setSelectedPatient(patientsRes.data[0].uniqueId);
+                    if (patientsRes.data.length > 0) setSelectedPatient(patientsRes.data[0]);
                 }
             } catch (err) {
                 console.error('Error fetching data:', err);
-                alert('Failed to load data.');
+                setErrorMessage('Failed to load data.');
             } finally {
                 setLoading(false);
             }
@@ -48,7 +51,7 @@ const UploadFile = () => {
     const handleFileChange = async (e) => {
         const selectedFile = e.target.files[0];
         if (!selectedFile || selectedFile.type.startsWith('video/')) {
-            alert('Please select a file (no videos allowed).');
+            setErrorMessage('Please select a file (no videos allowed).');
             return;
         }
 
@@ -62,15 +65,17 @@ const UploadFile = () => {
 
         const key = crypto.getRandomValues(new Uint8Array(32));
         setAesKey(Buffer.from(key).toString('hex'));
+        setErrorMessage(''); // Clear error on successful file selection
     };
 
     const handleUpload = async () => {
         if (!file || (role === 'hospital' && !selectedPatient)) {
-            alert('Please select a file and, for hospitals, a patient.');
+            setErrorMessage('Please select a file and, for hospitals, a patient.');
             return;
         }
 
         setLoading(true);
+        setErrorMessage(''); // Clear previous error
         try {
             const res = await axios.get('http://localhost:5000/api/auth/uid', {
                 headers: { Authorization: `Bearer ${token}` }
@@ -95,7 +100,6 @@ const UploadFile = () => {
             );
             const encryptedHex = Buffer.from(encrypted).toString('hex');
 
-            // Prepare JSON for MinIO
             const fileData = {
                 encryptedData: encryptedHex,
                 iv: Buffer.from(iv).toString('hex'),
@@ -104,17 +108,30 @@ const UploadFile = () => {
                 encryptionAlgorithm: 'AES-GCM'
             };
 
-            // For now, log the JSON (later upload to MinIO)
             console.log('File to store in MinIO as JSON:', fileData);
-
-            // Simulate MinIO storage by naming it with fileHash
             const jsonFileName = `${fileHash}.json`;
             console.log(`Would store as: ${jsonFileName}`);
 
-            setEncryptedFile(encryptedHex);
+            // If hospital, request write access
+            let tokenHash;
+            if (role === 'hospital' && contracts?.validation) {
+                const patientAddress = selectedPatient.publicAddress;
 
+                try {
+                    tokenHash = await contracts.validation.requestFileWriteAccess(patientAddress, {
+                        gasLimit: 300000 // Manual gas limit to avoid UNPREDICTABLE_GAS_LIMIT
+                    });
+                    console.log('Write Access Token Hash:', tokenHash);
+                } catch (err) {
+                    const revertReason = err.error?.error?.data?.reason || err.reason || 'Unknown error';
+                    setErrorMessage(`Failed to get write access: ${revertReason}`);
+                    throw err; // Stop execution
+                }
+            }
+
+            // Add file to database
             const uploadData = {
-                uniqueId: role === 'hospital' ? selectedPatient : uid,
+                uniqueId: role === 'hospital' ? selectedPatient.uniqueId : uid,
                 fileId: fileHash,
                 fileName
             };
@@ -122,12 +139,13 @@ const UploadFile = () => {
                 headers: { Authorization: `Bearer ${token}` }
             });
 
-            alert('File encrypted successfully! Check console for JSON data.');
-
+            setEncryptedFile(encryptedHex);
+            alert('File encrypted and added to database successfully! Check console for details.');
             navigate('/dashboard');
         } catch (err) {
-            console.error('Error encrypting file:', err);
-            alert('Failed to encrypt file.');
+            console.error('Error processing file:', err);
+            const revertReason = err.error?.error?.data?.reason || err.reason || err.message || 'Unknown error';
+            setErrorMessage(`Error: ${revertReason}`);
         } finally {
             setLoading(false);
         }
@@ -137,6 +155,7 @@ const UploadFile = () => {
         <div style={containerStyle}>
             <h1>Upload File</h1>
             {loading && <p>Loading...</p>}
+            {errorMessage && <p style={errorStyle}>{errorMessage}</p>}
             {role && (
                 <div>
                     <input
@@ -160,8 +179,11 @@ const UploadFile = () => {
                             <label htmlFor="patientSelect">Upload for Patient:</label>
                             <select
                                 id="patientSelect"
-                                value={selectedPatient}
-                                onChange={(e) => setSelectedPatient(e.target.value)}
+                                value={selectedPatient.uniqueId || ''}
+                                onChange={(e) => {
+                                    const patient = patients.find(p => p.uniqueId === e.target.value);
+                                    setSelectedPatient(patient || {});
+                                }}
                                 style={selectStyle}
                             >
                                 {patients.map(patient => (
@@ -209,6 +231,11 @@ const buttonStyle = {
     borderRadius: '4px',
     cursor: 'pointer',
     margin: '5px'
+};
+
+const errorStyle = {
+    color: 'red',
+    margin: '10px 0'
 };
 
 export default UploadFile;

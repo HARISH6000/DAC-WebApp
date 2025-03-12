@@ -16,15 +16,15 @@ router.post('/signup', [
   const errors = validationResult(req);
   if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
-  const { uniqueId, name, email, phone, address, publicKey, encryptedPrivateKey, password, role, dateOfBirth, bloodGroup, licenseNumber } = req.body;
+  const { uniqueId, name, email, phone, address, publicKey, publicAddress,encryptedPrivateKey, password, role, dateOfBirth, bloodGroup, licenseNumber } = req.body;
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     let user;
     if (role === "patient") {
-      user = new Patient({ uniqueId, name, email, phone, address, dateOfBirth, bloodGroup, publicKey, password: hashedPassword, privateKey: encryptedPrivateKey });
+      user = new Patient({ uniqueId, name, email, phone, address, dateOfBirth, bloodGroup, publicKey, publicAddress,password: hashedPassword, privateKey: encryptedPrivateKey });
     } else if (role === "hospital") {
-      user = new Hospital({ uniqueId, name, email, phone, address, licenseNumber, publicKey, password: hashedPassword, privateKey: encryptedPrivateKey });
+      user = new Hospital({ uniqueId, name, email, phone, address, licenseNumber, publicKey, publicAddress,password: hashedPassword, privateKey: encryptedPrivateKey });
     } else {
       return res.status(400).json({ error: "Invalid role" });
     }
