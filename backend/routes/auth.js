@@ -92,5 +92,37 @@ router.get('/role',async(req,res)=>{
     }
 });
 
+router.get('/user-details',async(req,res)=>{
+    try{
+        const token = req.headers.authorization?.split(' ')[1];
+        if (!token) return res.status(401).json({ error: 'Token missing' });
+
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const { id, role } = decoded;
+        const user = role === "patient" 
+            ? await Patient.findById(id) 
+            : await Hospital.findById(id);
+        res.json(user);
+    }catch(err){
+        res.status(500);
+    }
+});
+
+router.get('/uid',async(req,res)=>{
+    try{
+        const token = req.headers.authorization?.split(' ')[1];
+        if (!token) return res.status(401).json({ error: 'Token missing' });
+
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const { id, role } = decoded;
+        const user = role === "patient" 
+            ? await Patient.findById(id) 
+            : await Hospital.findById(id);
+        res.json({uniqueId:user.uniqueId});
+    }catch(err){
+        res.status(500);
+    }
+});
+
 
 module.exports = router;

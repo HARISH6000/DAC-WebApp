@@ -10,6 +10,7 @@ const Dashboard = () => {
     const navigate = useNavigate();
     const [role, setRole] = useState(null); // patient or hospital
     const [files, setFiles] = useState([]); // Patient files or hospital patient files
+    const [files1, setFiles1] = useState([]);
     const [hospitals, setHospitals] = useState([]); // Patient's shared hospitals
     const [patients, setPatients] = useState([]); // Hospital's patients
     const [selectedHospital, setSelectedHospital] = useState(null); // For patient: filter files by hospital
@@ -22,27 +23,23 @@ const Dashboard = () => {
 
             setLoading(true);
             try {
-                // Determine role from backend (assuming /api/auth/get-key returns role)
                 const res = await axios.get('http://localhost:5000/api/auth/role', {
                     headers: { Authorization: `Bearer ${token}` }
                 });
-                const userRole = res.data.role; // Assume role is returned here
+                const userRole = res.data.role;
                 setRole(userRole);
 
                 if (userRole === 'patient') {
-                    // Fetch patient files
                     const filesRes = await axios.get('http://localhost:5000/api/file/patient/files', {
                         headers: { Authorization: `Bearer ${token}` }
                     });
                     setFiles(filesRes.data);
 
-                    // Fetch hospitals patient shares files with
                     const hospitalsRes = await axios.get('http://localhost:5000/api/file/patient/hospitals', {
                         headers: { Authorization: `Bearer ${token}` }
                     });
                     setHospitals(hospitalsRes.data);
                 } else if (userRole === 'hospital') {
-                    // Fetch patients hospital has access to
                     const patientsRes = await axios.get('http://localhost:5000/api/file/hospital/patients', {
                         headers: { Authorization: `Bearer ${token}` }
                     });
@@ -67,7 +64,7 @@ const Dashboard = () => {
                 `http://localhost:5000/api/file/patient/hospital-files?hospitalUniqueId=${hospital.uniqueId}`,
                 { headers: { Authorization: `Bearer ${token}` } }
             );
-            setFiles(filesRes.data);
+            setFiles1(filesRes.data);
         } catch (err) {
             console.error('Error fetching hospital files:', err);
             alert('Failed to load files for this hospital.');
@@ -78,14 +75,13 @@ const Dashboard = () => {
 
     const handlePatientClick = async (patient) => {
         setSelectedPatient(patient);
-        console.log(patient);
         setLoading(true);
         try {
             const filesRes = await axios.get(
-                `http://localhost:5000/api/file/hospital/files?uniqueId=${patient.uniqueId}`, 
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
-            setFiles(filesRes.data);
+                `http://localhost:5000/api/file/hospital/files?uniqueId=${patient.uniqueId}`,
+                { headers: { Authorization: `Bearer ${token}` }
+            });
+            setFiles1(filesRes.data);
         } catch (err) {
             console.error('Error fetching patient files:', err);
             alert('Failed to load files for this patient.');
@@ -113,6 +109,18 @@ const Dashboard = () => {
         }
     };
 
+    const handleAddFile = () => {
+        navigate('/upload-file');
+    };
+
+    const handleRequestFile = () => {
+        // To be implemented
+    };
+
+    const handleGrantPermission = () => {
+        // To be implemented
+    };
+
     return (
         <div style={containerStyle}>
             <h1>Dashboard</h1>
@@ -120,8 +128,34 @@ const Dashboard = () => {
             {wallet && role ? (
                 <div>
                     <p><strong>Wallet Address:</strong> {wallet.address}</p>
-                    <button onClick={handleGetParticipantDetails} style={buttonStyle}>Get Participant Details</button>
-                    <button onClick={handleLogout} style={buttonStyle}>Logout</button>
+                    <div style={buttonContainerStyle}>
+                        <button onClick={handleGetParticipantDetails} style={buttonStyle}>
+                            Get Participant Details
+                        </button>
+                        {role === 'hospital' && (
+                            <>
+                                <button onClick={handleAddFile} style={buttonStyle}>
+                                    Add File
+                                </button>
+                                <button onClick={handleRequestFile} style={buttonStyle}>
+                                    Request File
+                                </button>
+                            </>
+                        )}
+                        {role === 'patient' && (
+                            <>
+                                <button onClick={handleAddFile} style={buttonStyle}>
+                                    Add File
+                                </button>
+                                <button onClick={handleGrantPermission} style={buttonStyle}>
+                                    Grant Permission
+                                </button>
+                            </>
+                        )}
+                        <button onClick={handleLogout} style={buttonStyle}>
+                            Logout
+                        </button>
+                    </div>
 
                     {role === 'patient' && (
                         <div>
@@ -160,7 +194,7 @@ const Dashboard = () => {
                                     <h3>Files Shared with {selectedHospital.name}</h3>
                                     {files.length > 0 ? (
                                         <ul style={listStyle}>
-                                            {files.map(file => (
+                                            {files1.map(file => (
                                                 <li key={file.fileId} style={listItemStyle}>
                                                     {file.fileName}
                                                 </li>
@@ -201,7 +235,7 @@ const Dashboard = () => {
                                     <h3>Files for {selectedPatient.name}</h3>
                                     {files.length > 0 ? (
                                         <ul style={listStyle}>
-                                            {files.map(file => (
+                                            {files1.map(file => (
                                                 <li key={file.fileId} style={listItemStyle}>
                                                     {file.fileName}
                                                 </li>
@@ -242,6 +276,12 @@ const buttonStyle = {
     margin: '5px'
 };
 
+const buttonContainerStyle = {
+    display: 'flex',
+    gap: '10px',
+    marginBottom: '20px'
+};
+
 const listStyle = {
     listStyleType: 'none',
     padding: '0'
@@ -256,8 +296,7 @@ const clickableListItemStyle = {
     ...listItemStyle,
     cursor: 'pointer',
     backgroundColor: '#f0f0f0',
-    transition: 'background-color 0.2s',
-    ':hover': { backgroundColor: '#e0e0e0' } // Note: Hover doesn't work in inline styles, use CSS for this
+    transition: 'background-color 0.2s'
 };
 
 export default Dashboard;

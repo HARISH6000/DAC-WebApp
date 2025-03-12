@@ -4,6 +4,7 @@ import Signup from './components/Signup';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import Home from './components/Home';
+import UploadFile from './components/UploadFile';
 
 // ProtectedRoute component to restrict access
 const ProtectedRoute = ({ children }) => {
@@ -20,6 +21,10 @@ const App = () => {
                 <Route
                     path="/dashboard"
                     element={<ProtectedRoute><Dashboard /></ProtectedRoute>}
+                />
+                <Route
+                    path="/upload-file"
+                    element={<ProtectedRoute><UploadFile /></ProtectedRoute>}
                 />
                 <Route path="/" element={<Home />} />
             </Routes>
