@@ -3,12 +3,16 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
+import { WalletProvider } from './components/WalletContext';
+import { ContractProvider } from './components/ContractContext';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
-  <React.StrictMode>
+  <ContractProvider>
+  <WalletProvider>
     <App />
-  </React.StrictMode>
+  </WalletProvider>
+  </ContractProvider>
 );
 
 // If you want to start measuring performance in your app, pass a function
