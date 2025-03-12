@@ -49,7 +49,7 @@ router.post('/login', async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ error: "Invalid credentials" });
 
-    const token = jwt.sign({ id: user._id, role }, process.env.JWT_SECRET, { expiresIn: "1h" });
+    const token = jwt.sign({ id: user._id, role }, process.env.JWT_SECRET, { expiresIn: "15d" });
 
     res.json({ token, encryptedPrivateKey: user.privateKey });
 
@@ -76,6 +76,19 @@ router.get('/get-key', async (req, res) => {
 
     } catch (err) {
         res.status(401).json({ error: 'Invalid token' });
+    }
+});
+
+router.get('/role',async(req,res)=>{
+    try{
+        const token = req.headers.authorization?.split(' ')[1];
+        if (!token) return res.status(401).json({ error: 'Token missing' });
+
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const { id, role } = decoded;
+        res.json({role:role});
+    }catch(err){
+        res.status(500);
     }
 });
 
