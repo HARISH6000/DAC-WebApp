@@ -5,6 +5,7 @@ import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import Home from './components/Home';
 import UploadFile from './components/UploadFile';
+import GrantPermission from './components/GrantPermission';
 
 // ProtectedRoute component to restrict access
 const ProtectedRoute = ({ children }) => {
@@ -25,6 +26,10 @@ const App = () => {
                 <Route
                     path="/upload-file"
                     element={<ProtectedRoute><UploadFile /></ProtectedRoute>}
+                />
+                <Route
+                    path="/grant-permission"
+                    element={<ProtectedRoute><GrantPermission /></ProtectedRoute>}
                 />
                 <Route path="/" element={<Home />} />
             </Routes>

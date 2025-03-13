@@ -113,42 +113,49 @@ router.post('/add', authenticateToken, async (req, res) => {
 
 router.post('/patient/grant-access', authenticateToken, async (req, res) => {
     try {
-        console.log(req.body,"\n------\n",req.user.id);
-        const { fileId, hospitalUniqueId, deadline, blockchainTxHash } = req.body;
+        console.log(req.body, "\n------\n", req.user.id);
+        const { fileIds, hospitalUniqueId, deadline, blockchainTxHash } = req.body;
+        if (fileIds.length===0){
+            res.status(201).json({ message: 'Access granted successfully'});
+        }
 
         // Validate required fields
-        if (!fileId || !hospitalUniqueId || !deadline) {
-            return res.status(400).json({ error: 'fileId, hospitalUniqueId, and deadline are required' });
+        if (!fileIds || !Array.isArray(fileIds) || !hospitalUniqueId || !deadline) {
+            return res.status(400).json({ error: 'hospitalUniqueId, and deadline are required' });
         }
 
         // Find the patient (caller) and hospital
         const patient = await Patient.findById(req.user.id);
-        console.log(patient);
         if (!patient) return res.status(404).json({ error: 'Patient not found' });
 
         const hospital = await Hospital.findOne({ uniqueId: hospitalUniqueId });
         if (!hospital) return res.status(404).json({ error: 'Hospital not found' });
 
-        // Verify the file exists and belongs to the patient
-        const file = await MedicalFile.findOne({ fileId, patientId: req.user.id });
-        if (!file) return res.status(404).json({ error: 'File not found or not owned by patient' });
+        // Verify all files exist and belong to the patient
+        const files = await MedicalFile.find({ 
+            fileId: { $in: fileIds }, 
+            patientId: req.user.id 
+        });
+        if (files.length !== fileIds.length) {
+            return res.status(404).json({ error: 'One or more files not found or not owned by patient' });
+        }
 
         // Convert deadline (in seconds) to a Date object
-        const deadlineDate = new Date(Date.now() + deadline * 1000);
+        const deadlineDate = new Date(deadline * 1000); // Assuming deadline is already in seconds from frontend
 
-        // Create and save the new AccessPermission
-        const newPermission = new AccessPermission({
-            fileId: file._id,
+        // Create and save new AccessPermissions for each file
+        const permissions = fileIds.map(fileId => ({
+            fileId: files.find(f => f.fileId === fileId)._id,
             hospitalId: hospital._id,
-            patientId:patient._id,
+            patientId: patient._id,
             grantedDate: new Date(),
-            blockchainTxHash: blockchainTxHash || null, // Optional
+            blockchainTxHash: blockchainTxHash || null,
             deadline: deadlineDate
-        });
+        }));
 
-        await newPermission.save();
+        const savedPermissions = await AccessPermission.insertMany(permissions);
 
-        res.status(201).json({ message: 'Access granted successfully', permission: newPermission });
+        res.status(201).json({ message: 'Access granted successfully', permissions: savedPermissions });
     } catch (err) {
         console.error('Error granting access:', err);
         res.status(500).json({ error: 'Error granting access' });

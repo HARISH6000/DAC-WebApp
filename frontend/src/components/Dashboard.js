@@ -118,7 +118,7 @@ const Dashboard = () => {
     };
 
     const handleGrantPermission = () => {
-        // To be implemented
+        navigate('/grant-permission');
     };
 
     return (
@@ -233,7 +233,7 @@ const Dashboard = () => {
                             {selectedPatient && (
                                 <div>
                                     <h3>Files for {selectedPatient.name}</h3>
-                                    {files.length > 0 ? (
+                                    {files1.length > 0 ? (
                                         <ul style={listStyle}>
                                             {files1.map(file => (
                                                 <li key={file.fileId} style={listItemStyle}>
