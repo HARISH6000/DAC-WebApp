@@ -2,11 +2,11 @@ import { createContext, useContext, useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 
 // Replace with your deployed contract addresses
-const REGISTRATION_CONTRACT_ADDRESS = "0x6AA47BAc9F25A79294Ea10C6cbf1E1b646D8d891";
-const REQUEST_CONTRACT_ADDRESS = "0xc072FaD3283ABc8Cb459a927945Ad0230C6bF630";
-const ACCESS_CONTROL_CONTRACT_ADDRESS = "0x27a4ae273B1939B5FBcc41f769706De024A7CD70";
-const VALIDATION_CONTRACT_ADDRESS = "0x87ABF0867fed638612B85Bcb4C486cBCcE5d98F9";
-const FILE_REGISTRY_CONTRACT_ADDRESS = "0x2d485e41499B3C4d121E868Fa44002a29d8e163A";
+const REGISTRATION_CONTRACT_ADDRESS = "0xF2B07abd243DE8B1BBfDC044a5d087CfB3Ac63A7";
+const REQUEST_CONTRACT_ADDRESS = "0x67C92b83F9B25ecC2525a5ac8f458b95689FDaE7";
+const ACCESS_CONTROL_CONTRACT_ADDRESS = "0x19139AC6b26437381c3B803fd3095785AdA8c66b";
+const VALIDATION_CONTRACT_ADDRESS = "0x7707676eA42aED91fb6DE77803db6148E6a50698";
+const FILE_REGISTRY_CONTRACT_ADDRESS = "0x0e439272d207A0129Ad1B2CbE5803dd788996077";
 
 // Registration contract ABI (unchanged from your provided code)
 const registrationABI = [
@@ -721,274 +721,303 @@ const RequestABI = [
 ];
 
 const ValidationABI = [
-    {
-        "inputs": [
-          {
-            "internalType": "address",
-            "name": "_registration",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "_accessControl",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "_fileRegistry",
-            "type": "address"
-          }
-        ],
-        "stateMutability": "nonpayable",
-        "type": "constructor"
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_registration",
+        "type": "address"
       },
       {
-        "anonymous": false,
-        "inputs": [
-          {
-            "indexed": true,
-            "internalType": "bytes32",
-            "name": "tokenHash",
-            "type": "bytes32"
-          },
-          {
-            "indexed": true,
-            "internalType": "address",
-            "name": "hospital",
-            "type": "address"
-          },
-          {
-            "indexed": true,
-            "internalType": "address",
-            "name": "patient",
-            "type": "address"
-          },
-          {
-            "indexed": false,
-            "internalType": "string[]",
-            "name": "fileHashes",
-            "type": "string[]"
-          },
-          {
-            "indexed": false,
-            "internalType": "uint256",
-            "name": "expiry",
-            "type": "uint256"
-          }
-        ],
-        "name": "ReadAccessTokenGenerated",
-        "type": "event"
+        "internalType": "address",
+        "name": "_accessControl",
+        "type": "address"
       },
       {
-        "anonymous": false,
-        "inputs": [
-          {
-            "indexed": true,
-            "internalType": "bytes32",
-            "name": "tokenHash",
-            "type": "bytes32"
-          },
-          {
-            "indexed": true,
-            "internalType": "address",
-            "name": "hospital",
-            "type": "address"
-          }
-        ],
-        "name": "TokenValidated",
-        "type": "event"
-      },
-      {
-        "anonymous": false,
-        "inputs": [
-          {
-            "indexed": true,
-            "internalType": "bytes32",
-            "name": "tokenHash",
-            "type": "bytes32"
-          },
-          {
-            "indexed": true,
-            "internalType": "address",
-            "name": "hospital",
-            "type": "address"
-          },
-          {
-            "indexed": true,
-            "internalType": "address",
-            "name": "patient",
-            "type": "address"
-          },
-          {
-            "indexed": false,
-            "internalType": "uint256",
-            "name": "expiry",
-            "type": "uint256"
-          }
-        ],
-        "name": "WriteAccessTokenGenerated",
-        "type": "event"
-      },
-      {
-        "inputs": [],
-        "name": "accessControl",
-        "outputs": [
-          {
-            "internalType": "contract IAccessControl",
-            "name": "",
-            "type": "address"
-          }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-      },
-      {
-        "inputs": [
-          {
-            "internalType": "bytes32[]",
-            "name": "tokenHashes",
-            "type": "bytes32[]"
-          }
-        ],
-        "name": "cleanupExpiredTokens",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
-      },
-      {
-        "inputs": [],
-        "name": "fileRegistry",
-        "outputs": [
-          {
-            "internalType": "contract IFileRegistry",
-            "name": "",
-            "type": "address"
-          }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-      },
-      {
-        "inputs": [],
-        "name": "registration",
-        "outputs": [
-          {
-            "internalType": "contract IRegistration",
-            "name": "",
-            "type": "address"
-          }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-      },
-      {
-        "inputs": [
-          {
-            "internalType": "address",
-            "name": "patient",
-            "type": "address"
-          },
-          {
-            "internalType": "string[]",
-            "name": "fileHashes",
-            "type": "string[]"
-          }
-        ],
-        "name": "requestFileAccess",
-        "outputs": [
-          {
-            "internalType": "bytes32",
-            "name": "",
-            "type": "bytes32"
-          }
-        ],
-        "stateMutability": "nonpayable",
-        "type": "function"
-      },
-      {
-        "inputs": [
-          {
-            "internalType": "address",
-            "name": "patient",
-            "type": "address"
-          }
-        ],
-        "name": "requestFileWriteAccess",
-        "outputs": [
-          {
-            "internalType": "bytes32",
-            "name": "",
-            "type": "bytes32"
-          }
-        ],
-        "stateMutability": "nonpayable",
-        "type": "function"
-      },
-      {
-        "inputs": [
-          {
-            "internalType": "bytes32",
-            "name": "tokenHash",
-            "type": "bytes32"
-          },
-          {
-            "internalType": "bytes",
-            "name": "signature",
-            "type": "bytes"
-          },
-          {
-            "internalType": "bool",
-            "name": "isWrite",
-            "type": "bool"
-          },
-          {
-            "internalType": "string[]",
-            "name": "fileHashes",
-            "type": "string[]"
-          },
-          {
-            "internalType": "string[]",
-            "name": "keyList",
-            "type": "string[]"
-          }
-        ],
-        "name": "validateToken",
-        "outputs": [
-          {
-            "internalType": "bool",
-            "name": "",
-            "type": "bool"
-          }
-        ],
-        "stateMutability": "nonpayable",
-        "type": "function"
+        "internalType": "address",
+        "name": "_fileRegistry",
+        "type": "address"
       }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "tokenHash",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "hospital",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "patient",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "string[]",
+        "name": "fileHashes",
+        "type": "string[]"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "expiry",
+        "type": "uint256"
+      }
+    ],
+    "name": "ReadAccessTokenGenerated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "tokenHash",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "hospital",
+        "type": "address"
+      }
+    ],
+    "name": "TokenValidated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "tokenHash",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "hospital",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "patient",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "expiry",
+        "type": "uint256"
+      }
+    ],
+    "name": "WriteAccessTokenGenerated",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "accessControl",
+    "outputs": [
+      {
+        "internalType": "contract IAccessControl",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32[]",
+        "name": "tokenHashes",
+        "type": "bytes32[]"
+      }
+    ],
+    "name": "cleanupExpiredTokens",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "fileRegistry",
+    "outputs": [
+      {
+        "internalType": "contract IFileRegistry",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "registration",
+    "outputs": [
+      {
+        "internalType": "contract IRegistration",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "patient",
+        "type": "address"
+      },
+      {
+        "internalType": "string[]",
+        "name": "fileHashes",
+        "type": "string[]"
+      }
+    ],
+    "name": "requestFileAccess",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "patient",
+        "type": "address"
+      }
+    ],
+    "name": "requestFileWriteAccess",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "tokenHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes",
+        "name": "signature",
+        "type": "bytes"
+      },
+      {
+        "internalType": "bool",
+        "name": "isWrite",
+        "type": "bool"
+      },
+      {
+        "internalType": "string[]",
+        "name": "fileHashes",
+        "type": "string[]"
+      },
+      {
+        "internalType": "string[]",
+        "name": "keyList",
+        "type": "string[]"
+      }
+    ],
+    "name": "validateToken",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
 ]; 
 const FileRegistryABI = [
-    {
-        "inputs": [
-          {
-            "internalType": "address",
-            "name": "entity",
-            "type": "address"
-          },
-          {
-            "internalType": "string[]",
-            "name": "fileHashes",
-            "type": "string[]"
-          }
-        ],
-        "name": "getKeys",
-        "outputs": [
-          {
-            "internalType": "string[]",
-            "name": "",
-            "type": "string[]"
-          }
-        ],
-        "stateMutability": "view",
-        "type": "function"
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "entity",
+        "type": "address"
+      },
+      {
+        "internalType": "string[]",
+        "name": "fileHashes",
+        "type": "string[]"
+      },
+      {
+        "internalType": "string[]",
+        "name": "keyList",
+        "type": "string[]"
       }
+    ],
+    "name": "addKey",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "entity",
+        "type": "address"
+      },
+      {
+        "internalType": "string[]",
+        "name": "fileHashes",
+        "type": "string[]"
+      }
+    ],
+    "name": "getKeys",
+    "outputs": [
+      {
+        "internalType": "string[]",
+        "name": "",
+        "type": "string[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
 ];
 
 const ContractContext = createContext();
