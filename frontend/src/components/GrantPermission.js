@@ -22,9 +22,10 @@ const GrantPermission = () => {
             if (!token) return;
             setLoading(true);
             try {
-                const hospitalsRes = await axios.get('http://localhost:5000/api/file/patient/hospitals', {
+                const hospitalsRes = await axios.get('http://localhost:5000/api/auth/hospitals', {
                     headers: { Authorization: `Bearer ${token}` }
                 });
+                console.log(hospitalsRes.data);
                 setHospitals(hospitalsRes.data);
                 if (hospitalsRes.data.length > 0) setSelectedHospital(hospitalsRes.data[0]);
 
@@ -48,6 +49,8 @@ const GrantPermission = () => {
         );
     };
 
+    const EthCrypto = require('eth-crypto');
+
     const handleGrantPermission = async () => {
         if (!selectedHospital || !deadline) {
             setErrorMessage('Please select a hospital, and a deadline.');
@@ -63,7 +66,40 @@ const GrantPermission = () => {
                 return;
             }
 
-            // Backend API call
+            // Step 1: Fetch keys from FileRegistry
+            const patientAddress = wallet.address;
+            const rawKeys = await contracts.fileRegistry.getKeys(patientAddress, selectedFiles);
+            console.log('Raw Keys from FileRegistry:', rawKeys);
+
+            // Step 2: Decrypt keys with patient's private key
+            const decryptedKeys = await Promise.all(rawKeys.map(async (encryptedKey) => {
+                const decrypted = await EthCrypto.decryptWithPrivateKey(
+                    wallet.privateKey,
+                    EthCrypto.cipher.parse(encryptedKey) // Parse hex string to cipher object
+                );
+                return decrypted; // Plaintext key as string
+            }));
+            console.log('Decrypted Keys:', decryptedKeys);
+
+            // Step 3: Fetch hospital's public key and encrypt keys
+            const hospitalAddress = selectedHospital.publicAddress;
+            const res = await axios.get('http://localhost:5000/api/auth/user-details', {
+                headers: { Authorization: `Bearer ${token}` },
+                params: { address: hospitalAddress }
+            });
+            const hospitalPublicKey = res.data.publicKey;
+            console.log('Hospital Public Key:', hospitalPublicKey);
+
+            const encryptedKeys = await Promise.all(decryptedKeys.map(async (key) => {
+                const encrypted = await EthCrypto.encryptWithPublicKey(
+                    hospitalPublicKey,
+                    key
+                );
+                return EthCrypto.cipher.stringify(encrypted); // Hex string
+            }));
+            console.log('Re-encrypted Keys for Hospital:', encryptedKeys);
+
+            // Step 4: Backend API call
             const grantData = {
                 hospitalUniqueId: selectedHospital.uniqueId,
                 fileIds: selectedFiles,
@@ -74,15 +110,16 @@ const GrantPermission = () => {
                 headers: { Authorization: `Bearer ${token}` }
             });
 
-            
-            //console.log("\n\n in \n\n");
+            console.log("in1")
+            // Step 5: Blockchain call to grantAccess
+            const accessTypeEnum = accessType === 'read' ? 1 : accessType === 'write' ? 2 : 3;
             await contracts.accessControl.grantAccess(
-                selectedHospital.publicAddress,
-                accessType === 'read' ? 1 : accessType === 'write' ? 2 : 3,
-                false,
+                hospitalAddress,
+                accessTypeEnum,
                 selectedFiles,
+                encryptedKeys,
                 deadlineSeconds,
-                { gasLimit: 500000 }
+                { gasLimit: 5000000 }
             );
 
             alert('Permission granted successfully!');

@@ -124,5 +124,14 @@ router.get('/uid',async(req,res)=>{
     }
 });
 
+router.get('/hospitals',async(req,res)=>{
+  try{
+    const hospitals = await Hospital.find();
+    res.json(hospitals);
+  }catch(err){
+      res.status(500);
+  }
+});
+
 
 module.exports = router;

@@ -116,7 +116,7 @@ router.post('/patient/grant-access', authenticateToken, async (req, res) => {
         console.log(req.body, "\n------\n", req.user.id);
         const { fileIds, hospitalUniqueId, deadline, blockchainTxHash } = req.body;
         if (fileIds.length===0){
-            res.status(201).json({ message: 'Access granted successfully'});
+            return res.status(201).json({ message: 'Access granted successfully'});
         }
 
         // Validate required fields

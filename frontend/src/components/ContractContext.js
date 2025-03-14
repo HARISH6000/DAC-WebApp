@@ -2,11 +2,11 @@ import { createContext, useContext, useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 
 // Replace with your deployed contract addresses
-const REGISTRATION_CONTRACT_ADDRESS = "0xe381Ee439EC6949C4c1bbEC9416F94379Ac1E076";
-const REQUEST_CONTRACT_ADDRESS = "0x6e6FAEd3deEe2FF5adBF6F0dCF1Df46e16B8d241";
-const ACCESS_CONTROL_CONTRACT_ADDRESS = "0x0ACb2DB7420e14603D725C7ee453BB498e3743a4";
-const VALIDATION_CONTRACT_ADDRESS = "0x81f58A343FeFf8FD1167D9FD98a70bb041be94FE";
-const FILE_REGISTRY_CONTRACT_ADDRESS = "0x8BcB421F39E93aE5B3493A7165A3060aB098304f";
+const REGISTRATION_CONTRACT_ADDRESS = "0x6AA47BAc9F25A79294Ea10C6cbf1E1b646D8d891";
+const REQUEST_CONTRACT_ADDRESS = "0xc072FaD3283ABc8Cb459a927945Ad0230C6bF630";
+const ACCESS_CONTROL_CONTRACT_ADDRESS = "0x27a4ae273B1939B5FBcc41f769706De024A7CD70";
+const VALIDATION_CONTRACT_ADDRESS = "0x87ABF0867fed638612B85Bcb4C486cBCcE5d98F9";
+const FILE_REGISTRY_CONTRACT_ADDRESS = "0x2d485e41499B3C4d121E868Fa44002a29d8e163A";
 
 // Registration contract ABI (unchanged from your provided code)
 const registrationABI = [
@@ -30,11 +30,17 @@ const registrationABI = [
 ];
 
 
-const AccessControlABI = [{
+const AccessControlABI = [
+  {
     "inputs": [
       {
         "internalType": "address",
         "name": "_requestContract",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_fileRegistry",
         "type": "address"
       }
     ],
@@ -61,12 +67,6 @@ const AccessControlABI = [{
         "internalType": "enum AccessControlContract.AccessType",
         "name": "accessType",
         "type": "uint8"
-      },
-      {
-        "indexed": false,
-        "internalType": "bool",
-        "name": "isAll",
-        "type": "bool"
       },
       {
         "indexed": false,
@@ -167,6 +167,19 @@ const AccessControlABI = [{
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "fileRegistry",
+    "outputs": [
+      {
+        "internalType": "contract IFileRegistry",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",
@@ -222,13 +235,13 @@ const AccessControlABI = [{
         "type": "uint8"
       },
       {
-        "internalType": "bool",
-        "name": "isAll",
-        "type": "bool"
+        "internalType": "string[]",
+        "name": "fileList",
+        "type": "string[]"
       },
       {
         "internalType": "string[]",
-        "name": "fileList",
+        "name": "keyList",
         "type": "string[]"
       },
       {
@@ -254,6 +267,11 @@ const AccessControlABI = [{
         "internalType": "uint256",
         "name": "requestId",
         "type": "uint256"
+      },
+      {
+        "internalType": "string[]",
+        "name": "keyList",
+        "type": "string[]"
       }
     ],
     "name": "processRequest",
@@ -367,370 +385,339 @@ const AccessControlABI = [{
 ];
 
 const RequestABI = [
-    {
-        "inputs": [
-          {
-            "internalType": "address",
-            "name": "_registration",
-            "type": "address"
-          }
-        ],
-        "stateMutability": "nonpayable",
-        "type": "constructor"
-      },
+  {
+    "inputs": [
       {
-        "anonymous": false,
-        "inputs": [
-          {
-            "indexed": true,
-            "internalType": "uint256",
-            "name": "requestId",
-            "type": "uint256"
-          },
-          {
-            "indexed": true,
-            "internalType": "address",
-            "name": "patient",
-            "type": "address"
-          },
-          {
-            "indexed": true,
-            "internalType": "address",
-            "name": "hospital",
-            "type": "address"
-          },
-          {
-            "indexed": false,
-            "internalType": "string[]",
-            "name": "fileList",
-            "type": "string[]"
-          },
-          {
-            "indexed": false,
-            "internalType": "uint256",
-            "name": "deadline",
-            "type": "uint256"
-          },
-          {
-            "indexed": false,
-            "internalType": "enum RequestContract.AccessType",
-            "name": "accessType",
-            "type": "uint8"
-          },
-          {
-            "indexed": false,
-            "internalType": "bool",
-            "name": "isAll",
-            "type": "bool"
-          },
-          {
-            "indexed": false,
-            "internalType": "bool",
-            "name": "isProcessed",
-            "type": "bool"
-          }
-        ],
-        "name": "RequestMade",
-        "type": "event"
-      },
-      {
-        "inputs": [],
-        "name": "getHospitalRequests",
-        "outputs": [
-          {
-            "components": [
-              {
-                "internalType": "uint256",
-                "name": "requestId",
-                "type": "uint256"
-              },
-              {
-                "internalType": "address",
-                "name": "hospital",
-                "type": "address"
-              },
-              {
-                "internalType": "address",
-                "name": "patient",
-                "type": "address"
-              },
-              {
-                "internalType": "string[]",
-                "name": "fileList",
-                "type": "string[]"
-              },
-              {
-                "internalType": "uint256",
-                "name": "deadline",
-                "type": "uint256"
-              },
-              {
-                "internalType": "enum RequestContract.AccessType",
-                "name": "accessType",
-                "type": "uint8"
-              },
-              {
-                "internalType": "bool",
-                "name": "isAll",
-                "type": "bool"
-              },
-              {
-                "internalType": "bool",
-                "name": "isProcessed",
-                "type": "bool"
-              }
-            ],
-            "internalType": "struct RequestContract.Request[]",
-            "name": "",
-            "type": "tuple[]"
-          }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-      },
-      {
-        "inputs": [],
-        "name": "getPatientRequests",
-        "outputs": [
-          {
-            "components": [
-              {
-                "internalType": "uint256",
-                "name": "requestId",
-                "type": "uint256"
-              },
-              {
-                "internalType": "address",
-                "name": "hospital",
-                "type": "address"
-              },
-              {
-                "internalType": "address",
-                "name": "patient",
-                "type": "address"
-              },
-              {
-                "internalType": "string[]",
-                "name": "fileList",
-                "type": "string[]"
-              },
-              {
-                "internalType": "uint256",
-                "name": "deadline",
-                "type": "uint256"
-              },
-              {
-                "internalType": "enum RequestContract.AccessType",
-                "name": "accessType",
-                "type": "uint8"
-              },
-              {
-                "internalType": "bool",
-                "name": "isAll",
-                "type": "bool"
-              },
-              {
-                "internalType": "bool",
-                "name": "isProcessed",
-                "type": "bool"
-              }
-            ],
-            "internalType": "struct RequestContract.Request[]",
-            "name": "",
-            "type": "tuple[]"
-          }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-      },
-      {
-        "inputs": [
-          {
-            "internalType": "uint256",
-            "name": "requestId",
-            "type": "uint256"
-          }
-        ],
-        "name": "getRequest",
-        "outputs": [
-          {
-            "components": [
-              {
-                "internalType": "uint256",
-                "name": "requestId",
-                "type": "uint256"
-              },
-              {
-                "internalType": "address",
-                "name": "hospital",
-                "type": "address"
-              },
-              {
-                "internalType": "address",
-                "name": "patient",
-                "type": "address"
-              },
-              {
-                "internalType": "string[]",
-                "name": "fileList",
-                "type": "string[]"
-              },
-              {
-                "internalType": "uint256",
-                "name": "deadline",
-                "type": "uint256"
-              },
-              {
-                "internalType": "enum RequestContract.AccessType",
-                "name": "accessType",
-                "type": "uint8"
-              },
-              {
-                "internalType": "bool",
-                "name": "isAll",
-                "type": "bool"
-              },
-              {
-                "internalType": "bool",
-                "name": "isProcessed",
-                "type": "bool"
-              }
-            ],
-            "internalType": "struct RequestContract.Request",
-            "name": "",
-            "type": "tuple"
-          }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-      },
-      {
-        "inputs": [
-          {
-            "internalType": "address",
-            "name": "patient",
-            "type": "address"
-          },
-          {
-            "internalType": "string[]",
-            "name": "fileList",
-            "type": "string[]"
-          },
-          {
-            "internalType": "uint256",
-            "name": "deadline",
-            "type": "uint256"
-          },
-          {
-            "internalType": "enum RequestContract.AccessType",
-            "name": "accessType",
-            "type": "uint8"
-          },
-          {
-            "internalType": "bool",
-            "name": "isAll",
-            "type": "bool"
-          }
-        ],
-        "name": "makeRequest",
-        "outputs": [
-          {
-            "internalType": "uint256",
-            "name": "",
-            "type": "uint256"
-          }
-        ],
-        "stateMutability": "nonpayable",
-        "type": "function"
-      },
-      {
-        "inputs": [],
-        "name": "registration",
-        "outputs": [
-          {
-            "internalType": "contract IRegistration",
-            "name": "",
-            "type": "address"
-          }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-      },
-      {
-        "inputs": [],
-        "name": "requestCounter",
-        "outputs": [
-          {
-            "internalType": "uint256",
-            "name": "",
-            "type": "uint256"
-          }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-      },
-      {
-        "inputs": [
-          {
-            "internalType": "uint256",
-            "name": "",
-            "type": "uint256"
-          }
-        ],
-        "name": "requests",
-        "outputs": [
-          {
-            "internalType": "uint256",
-            "name": "requestId",
-            "type": "uint256"
-          },
-          {
-            "internalType": "address",
-            "name": "hospital",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "patient",
-            "type": "address"
-          },
-          {
-            "internalType": "uint256",
-            "name": "deadline",
-            "type": "uint256"
-          },
-          {
-            "internalType": "enum RequestContract.AccessType",
-            "name": "accessType",
-            "type": "uint8"
-          },
-          {
-            "internalType": "bool",
-            "name": "isAll",
-            "type": "bool"
-          },
-          {
-            "internalType": "bool",
-            "name": "isProcessed",
-            "type": "bool"
-          }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-      },
-      {
-        "inputs": [
-          {
-            "internalType": "uint256",
-            "name": "requestId",
-            "type": "uint256"
-          }
-        ],
-        "name": "setRequestProcessed",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
+        "internalType": "address",
+        "name": "_registration",
+        "type": "address"
       }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "requestId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "patient",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "hospital",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "string[]",
+        "name": "fileList",
+        "type": "string[]"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "deadline",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "enum RequestContract.AccessType",
+        "name": "accessType",
+        "type": "uint8"
+      },
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "isProcessed",
+        "type": "bool"
+      }
+    ],
+    "name": "RequestMade",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "getHospitalRequests",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "requestId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "hospital",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "patient",
+            "type": "address"
+          },
+          {
+            "internalType": "string[]",
+            "name": "fileList",
+            "type": "string[]"
+          },
+          {
+            "internalType": "uint256",
+            "name": "deadline",
+            "type": "uint256"
+          },
+          {
+            "internalType": "enum RequestContract.AccessType",
+            "name": "accessType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "bool",
+            "name": "isProcessed",
+            "type": "bool"
+          }
+        ],
+        "internalType": "struct RequestContract.Request[]",
+        "name": "",
+        "type": "tuple[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getPatientRequests",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "requestId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "hospital",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "patient",
+            "type": "address"
+          },
+          {
+            "internalType": "string[]",
+            "name": "fileList",
+            "type": "string[]"
+          },
+          {
+            "internalType": "uint256",
+            "name": "deadline",
+            "type": "uint256"
+          },
+          {
+            "internalType": "enum RequestContract.AccessType",
+            "name": "accessType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "bool",
+            "name": "isProcessed",
+            "type": "bool"
+          }
+        ],
+        "internalType": "struct RequestContract.Request[]",
+        "name": "",
+        "type": "tuple[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "requestId",
+        "type": "uint256"
+      }
+    ],
+    "name": "getRequest",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "requestId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "hospital",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "patient",
+            "type": "address"
+          },
+          {
+            "internalType": "string[]",
+            "name": "fileList",
+            "type": "string[]"
+          },
+          {
+            "internalType": "uint256",
+            "name": "deadline",
+            "type": "uint256"
+          },
+          {
+            "internalType": "enum RequestContract.AccessType",
+            "name": "accessType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "bool",
+            "name": "isProcessed",
+            "type": "bool"
+          }
+        ],
+        "internalType": "struct RequestContract.Request",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "patient",
+        "type": "address"
+      },
+      {
+        "internalType": "string[]",
+        "name": "fileList",
+        "type": "string[]"
+      },
+      {
+        "internalType": "uint256",
+        "name": "deadline",
+        "type": "uint256"
+      },
+      {
+        "internalType": "enum RequestContract.AccessType",
+        "name": "accessType",
+        "type": "uint8"
+      }
+    ],
+    "name": "makeRequest",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "registration",
+    "outputs": [
+      {
+        "internalType": "contract IRegistration",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "requestCounter",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "requests",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "requestId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "hospital",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "patient",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "deadline",
+        "type": "uint256"
+      },
+      {
+        "internalType": "enum RequestContract.AccessType",
+        "name": "accessType",
+        "type": "uint8"
+      },
+      {
+        "internalType": "bool",
+        "name": "isProcessed",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "requestId",
+        "type": "uint256"
+      }
+    ],
+    "name": "setRequestProcessed",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
 ];
 
 const ValidationABI = [
