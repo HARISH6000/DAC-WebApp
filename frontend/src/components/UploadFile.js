@@ -4,6 +4,12 @@ import { useWallet } from './WalletContext';
 import { useContracts } from './ContractContext';
 import axios from 'axios';
 import { Buffer } from 'buffer';
+import crypto from 'crypto';
+import { ec as EC } from 'elliptic';
+import { ethers } from 'ethers';
+
+
+const ec = new EC("secp256k1");
 
 const UploadFile = () => {
     const { wallet, token } = useWallet();
@@ -32,7 +38,7 @@ const UploadFile = () => {
                 setRole(userRole);
 
                 if (userRole === 'hospital') {
-                    const patientsRes = await axios.get('http://localhost:5000/api/file/hospital/patients', {
+                    const patientsRes = await axios.get('http://localhost:5000/api/file/hospital/patients-write-access', {
                         headers: { Authorization: `Bearer ${token}` }
                     });
                     setPatients(patientsRes.data);
@@ -59,14 +65,57 @@ const UploadFile = () => {
         setFileName(selectedFile.name);
 
         const arrayBuffer = await selectedFile.arrayBuffer();
-        const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
+        const hashBuffer = await window.crypto.subtle.digest('SHA-256', arrayBuffer);
         const hash = Buffer.from(hashBuffer).toString('hex');
         setFileHash(hash);
 
-        const key = crypto.getRandomValues(new Uint8Array(32));
+        const key = window.crypto.getRandomValues(new Uint8Array(32));
         setAesKey(Buffer.from(key).toString('hex'));
         setErrorMessage(''); // Clear error on successful file selection
     };
+
+    const signHash = async (tokenHash) => {
+        try {
+            const signature = await wallet.signMessage(ethers.utils.arrayify(tokenHash));
+            return signature;
+        } catch (error) {
+            console.error("Error signing hash:", error);
+            throw error;
+        }
+    };
+
+    function encryptAESKey(publicKeyHex) {
+        publicKeyHex=publicKeyHex.substring(2);
+        console.log("1.publickey:",publicKeyHex);
+        console.log("2.aesKey:",aesKey);
+        
+        const userBPublicKey = ec.keyFromPublic(publicKeyHex, "hex").getPublic();
+
+        const ephemeralKey = ec.genKeyPair();
+        const ephemeralPublicKey = ephemeralKey.getPublic("hex");
+        console.log("Ephemeral Public Key:", ephemeralPublicKey);
+
+        const sharedSecret = ephemeralKey.derive(userBPublicKey);
+        const encryptionKey = crypto.createHash("sha256")
+            .update(Buffer.from(sharedSecret.toArray()))
+            .digest(); 
+        console.log("Derived Encryption Key:", encryptionKey.toString("hex"));
+
+        const iv = crypto.randomBytes(12); 
+        const cipher = crypto.createCipheriv("aes-256-gcm", encryptionKey, iv);
+        let encryptedAESKey = cipher.update(aesKey, null, "hex");
+        encryptedAESKey += cipher.final("hex");
+        const authTag = cipher.getAuthTag().toString("hex");
+
+        const encryptedData = JSON.stringify({
+            ephemeralPublicKey: ephemeralPublicKey,
+            iv: iv.toString("hex"),
+            encryptedAESKey: encryptedAESKey,
+            authTag: authTag
+        });
+        
+        return Buffer.from(encryptedData).toString("base64");
+    }
 
     const handleUpload = async () => {
         if (!file || (role === 'hospital' && !selectedPatient)) {
@@ -75,16 +124,22 @@ const UploadFile = () => {
         }
 
         setLoading(true);
-        setErrorMessage(''); // Clear previous error
+        setErrorMessage(''); 
         try {
-            const res = await axios.get('http://localhost:5000/api/auth/uid', {
+            const res = await axios.get('http://localhost:5000/api/auth/user-details', {
                 headers: { Authorization: `Bearer ${token}` }
             });
+            console.log("res.data:",res.data);
             const uid = res.data.uniqueId;
-
+            var publicKey=res.data.publicKey;
+            if(role==='hospital'){
+                console.log("selectedPatient:",selectedPatient);
+                publicKey=selectedPatient.publicKey;
+            }
+            console.log("publicKey:",publicKey);
             // Encrypt the file
             const rawKey = Buffer.from(aesKey, 'hex');
-            const key = await crypto.subtle.importKey(
+            const key = await window.crypto.subtle.importKey(
                 'raw',
                 rawKey,
                 { name: 'AES-GCM' },
@@ -92,8 +147,8 @@ const UploadFile = () => {
                 ['encrypt']
             );
             const fileContent = await file.arrayBuffer();
-            const iv = crypto.getRandomValues(new Uint8Array(12));
-            const encrypted = await crypto.subtle.encrypt(
+            const iv =  window.crypto.getRandomValues(new Uint8Array(12));
+            const encrypted = await  window.crypto.subtle.encrypt(
                 { name: 'AES-GCM', iv },
                 key,
                 fileContent
@@ -104,6 +159,7 @@ const UploadFile = () => {
                 encryptedData: encryptedHex,
                 iv: Buffer.from(iv).toString('hex'),
                 fileName,
+                fileHash,
                 mimeType: file.type,
                 encryptionAlgorithm: 'AES-GCM'
             };
@@ -113,24 +169,57 @@ const UploadFile = () => {
             console.log(`Would store as: ${jsonFileName}`);
 
             // If hospital, request write access
-            let tokenHash;
+            let tx;
+            let receipt;
             if (role === 'hospital' && contracts?.validation) {
                 const patientAddress = selectedPatient.publicAddress;
 
                 try {
-                    tokenHash = await contracts.validation.requestFileWriteAccess(patientAddress, {
+                    tx = await contracts.validation.requestFileWriteAccess(patientAddress, {
                         gasLimit: 300000 // Manual gas limit to avoid UNPREDICTABLE_GAS_LIMIT
                     });
-                    console.log('Write Access Token Hash:', tokenHash);
+                    receipt = await tx.wait();
+                    console.log('Write Access Token Hash:', receipt);
                 } catch (err) {
                     const revertReason = err.error?.error?.data?.reason || err.reason || 'Unknown error';
                     setErrorMessage(`Failed to get write access: ${revertReason}`);
                     throw err; // Stop execution
                 }
             }
+            
+            const event = receipt.events.find(e => e.event === 'WriteAccessTokenGenerated');
+            const tokenHash = event.args.tokenHash;
+            console.log('Write Access Token Hash:', tokenHash);
 
+            let signature=await signHash(tokenHash);
+            console.log("signature",signature);
+
+            let encKey=encryptAESKey(publicKey);
+            console.log("encKey:",encKey);
+            const decodedData = JSON.parse(Buffer.from(encKey, "base64").toString());
+            console.log("decodeddata:",decodedData);
+            console.log("selectedPatient:",selectedPatient);
             // Add file to database
-            const uploadData = {
+            let fileHashList=[fileHash];
+            let keyList=[encKey];
+            let fileDataList=[fileData];
+            let uploadData={
+                uniqueId:selectedPatient.uniqueId,
+                tokenHash:tokenHash,
+                signature:signature,
+                isWrite:true,
+                fileHashes:fileHashList,
+                keyList:keyList,
+                fileData:fileDataList
+            }
+
+            let response = await axios.post('http://localhost:5000/api/file/upload',uploadData,{
+                headers: { Authorization: `Bearer ${token}` }
+            });
+
+            console.log(response);
+
+            uploadData = {
                 uniqueId: role === 'hospital' ? selectedPatient.uniqueId : uid,
                 fileId: fileHash,
                 fileName

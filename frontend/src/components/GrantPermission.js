@@ -3,6 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { useWallet } from './WalletContext';
 import { useContracts } from './ContractContext';
 import axios from 'axios';
+import crypto from 'crypto';
+import { ec as EC } from 'elliptic';
+
+const ec = new EC("secp256k1");
 
 const GrantPermission = () => {
     const { wallet, token } = useWallet();
@@ -51,6 +55,39 @@ const GrantPermission = () => {
 
     const EthCrypto = require('eth-crypto');
 
+    function encryptAESKey(aesKey,publicKeyHex) {
+        publicKeyHex=publicKeyHex.substring(2);
+        console.log("1.publickey:",publicKeyHex);
+        console.log("2.aesKey:",aesKey);
+        
+        const userBPublicKey = ec.keyFromPublic(publicKeyHex, "hex").getPublic();
+
+        const ephemeralKey = ec.genKeyPair();
+        const ephemeralPublicKey = ephemeralKey.getPublic("hex");
+        console.log("Ephemeral Public Key:", ephemeralPublicKey);
+
+        const sharedSecret = ephemeralKey.derive(userBPublicKey);
+        const encryptionKey = crypto.createHash("sha256")
+            .update(Buffer.from(sharedSecret.toArray()))
+            .digest(); 
+        console.log("Derived Encryption Key:", encryptionKey.toString("hex"));
+
+        const iv = crypto.randomBytes(12); 
+        const cipher = crypto.createCipheriv("aes-256-gcm", encryptionKey, iv);
+        let encryptedAESKey = cipher.update(aesKey, null, "hex");
+        encryptedAESKey += cipher.final("hex");
+        const authTag = cipher.getAuthTag().toString("hex");
+
+        const encryptedData = JSON.stringify({
+            ephemeralPublicKey: ephemeralPublicKey,
+            iv: iv.toString("hex"),
+            encryptedAESKey: encryptedAESKey,
+            authTag: authTag
+        });
+        
+        return Buffer.from(encryptedData).toString("base64");
+    }
+
     const handleGrantPermission = async () => {
         if (!selectedHospital || !deadline) {
             setErrorMessage('Please select a hospital, and a deadline.');
@@ -73,11 +110,26 @@ const GrantPermission = () => {
 
             // Step 2: Decrypt keys with patient's private key
             const decryptedKeys = await Promise.all(rawKeys.map(async (encryptedKey) => {
-                const decrypted = await EthCrypto.decryptWithPrivateKey(
-                    wallet.privateKey,
-                    EthCrypto.cipher.parse(encryptedKey) // Parse hex string to cipher object
-                );
-                return decrypted; // Plaintext key as string
+                const decodedData = JSON.parse(Buffer.from(encryptedKey, "base64").toString());
+                console.log("decodeddata:",decodedData);
+                console.log(wallet.privateKey);
+                const userPrivateKey = ec.keyFromPrivate(wallet.privateKey.substring(2), "hex");
+                const ephemeralPublicKey = ec.keyFromPublic(decodedData.ephemeralPublicKey, "hex").getPublic();
+                const sharedSecret = userPrivateKey.derive(ephemeralPublicKey);
+                    const decryptionKey = crypto.createHash("sha256")
+                        .update(Buffer.from(sharedSecret.toArray()))
+                        .digest(); 
+                    console.log("Derived Decryption Key:", decryptionKey.toString("hex"));
+                
+                    const decipher = crypto.createDecipheriv(
+                        "aes-256-gcm",
+                        decryptionKey,
+                        Buffer.from(decodedData.iv, "hex")
+                    );
+                    decipher.setAuthTag(Buffer.from(decodedData.authTag, "hex"));
+                    let decryptedAESKey = decipher.update(decodedData.encryptedAESKey, "hex", "binary");
+                    decryptedAESKey += decipher.final("binary");
+                return decryptedAESKey; 
             }));
             console.log('Decrypted Keys:', decryptedKeys);
 
@@ -91,24 +143,45 @@ const GrantPermission = () => {
             console.log('Hospital Public Key:', hospitalPublicKey);
 
             const encryptedKeys = await Promise.all(decryptedKeys.map(async (key) => {
-                const encrypted = await EthCrypto.encryptWithPublicKey(
-                    hospitalPublicKey,
-                    key
-                );
-                return EthCrypto.cipher.stringify(encrypted); // Hex string
+                return encryptAESKey(key,hospitalPublicKey);
             }));
             console.log('Re-encrypted Keys for Hospital:', encryptedKeys);
-
+            console.log(accessType);
+            console.log("selectedfiles:",selectedFiles);
             // Step 4: Backend API call
-            const grantData = {
-                hospitalUniqueId: selectedHospital.uniqueId,
-                fileIds: selectedFiles,
-                accessType,
-                deadline: deadlineSeconds
-            };
-            await axios.post('http://localhost:5000/api/file/patient/grant-access', grantData, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            if(accessType==='read'){
+                const grantData = {
+                    hospitalUniqueId: selectedHospital.uniqueId,
+                    fileIds: selectedFiles,
+                    deadline: deadlineSeconds
+                };
+                await axios.post('http://localhost:5000/api/file/patient/grant-access', grantData, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+            }
+            else if(accessType==='write'){
+                console.log("inside else if")
+                const grantData = {
+                    hospitalUniqueId: selectedHospital.uniqueId,
+                    deadline: deadlineSeconds
+                };
+                await axios.post('http://localhost:5000/api/file/patient/grant-write-access', grantData, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+            }
+            else{
+                const grantData = {
+                    hospitalUniqueId: selectedHospital.uniqueId,
+                    fileIds: selectedFiles,
+                    deadline: deadlineSeconds
+                };
+                await axios.post('http://localhost:5000/api/file/patient/grant-access', grantData, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                await axios.post('http://localhost:5000/api/file/patient/grant-write-access', grantData, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+            }
 
             console.log("in1")
             // Step 5: Blockchain call to grantAccess
@@ -121,7 +194,6 @@ const GrantPermission = () => {
                 deadlineSeconds,
                 { gasLimit: 5000000 }
             );
-
             alert('Permission granted successfully!');
             navigate('/dashboard');
         } catch (err) {
