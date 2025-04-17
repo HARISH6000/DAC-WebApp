@@ -57,20 +57,20 @@ const GrantPermission = () => {
 
     function encryptAESKey(aesKey,publicKeyHex) {
         publicKeyHex=publicKeyHex.substring(2);
-        console.log("1.publickey:",publicKeyHex);
-        console.log("2.aesKey:",aesKey);
+        //console.log("1.publickey:",publicKeyHex);
+        //console.log("2.aesKey:",aesKey);
         
         const userBPublicKey = ec.keyFromPublic(publicKeyHex, "hex").getPublic();
 
         const ephemeralKey = ec.genKeyPair();
         const ephemeralPublicKey = ephemeralKey.getPublic("hex");
-        console.log("Ephemeral Public Key:", ephemeralPublicKey);
+        //console.log("Ephemeral Public Key:", ephemeralPublicKey);
 
         const sharedSecret = ephemeralKey.derive(userBPublicKey);
         const encryptionKey = crypto.createHash("sha256")
             .update(Buffer.from(sharedSecret.toArray()))
             .digest(); 
-        console.log("Derived Encryption Key:", encryptionKey.toString("hex"));
+        //console.log("Derived Encryption Key:", encryptionKey.toString("hex"));
 
         const iv = crypto.randomBytes(12); 
         const cipher = crypto.createCipheriv("aes-256-gcm", encryptionKey, iv);
@@ -89,6 +89,7 @@ const GrantPermission = () => {
     }
 
     const handleGrantPermission = async () => {
+        console.log("---Grant Permission---");
         if (!selectedHospital || !deadline) {
             setErrorMessage('Please select a hospital, and a deadline.');
             return;
@@ -97,22 +98,28 @@ const GrantPermission = () => {
         setLoading(true);
         setErrorMessage('');
         try {
+
             const deadlineSeconds = Math.floor(new Date(deadline).getTime() / 1000);
-            if (deadlineSeconds <= Math.floor(Date.now() / 1000)) {
-                setErrorMessage('Deadline must be in the future.');
-                return;
+            let deadlineDifferenceSeconds = (Math.floor(new Date(deadline).getTime() / 1000)-Math.floor(new Date().getTime() / 1000));
+            if (deadlineDifferenceSeconds < 0) {
+                deadlineDifferenceSeconds=0;
             }
+            // if (deadlineSeconds <= Math.floor(Date.now() / 1000)) {
+            //     setErrorMessage('Deadline must be in the future.');
+            //     return;
+            // }
 
             // Step 1: Fetch keys from FileRegistry
+            console.log("Fetching Keys from File registry...")
             const patientAddress = wallet.address;
             const rawKeys = await contracts.fileRegistry.getKeys(patientAddress, selectedFiles);
-            console.log('Raw Keys from FileRegistry:', rawKeys);
+            console.log('Encrypted Keys from FileRegistry:', rawKeys);
 
             // Step 2: Decrypt keys with patient's private key
+            console.log("---Decrypting the AES keys---");
             const decryptedKeys = await Promise.all(rawKeys.map(async (encryptedKey) => {
                 const decodedData = JSON.parse(Buffer.from(encryptedKey, "base64").toString());
                 console.log("decodeddata:",decodedData);
-                console.log(wallet.privateKey);
                 const userPrivateKey = ec.keyFromPrivate(wallet.privateKey.substring(2), "hex");
                 const ephemeralPublicKey = ec.keyFromPublic(decodedData.ephemeralPublicKey, "hex").getPublic();
                 const sharedSecret = userPrivateKey.derive(ephemeralPublicKey);
@@ -134,21 +141,32 @@ const GrantPermission = () => {
             console.log('Decrypted Keys:', decryptedKeys);
 
             // Step 3: Fetch hospital's public key and encrypt keys
+            console.log("---Encrypting The AES keys with Hospital's Public key---");
             const hospitalAddress = selectedHospital.publicAddress;
-            const res = await axios.get('http://localhost:5000/api/auth/user-details', {
-                headers: { Authorization: `Bearer ${token}` },
-                params: { address: hospitalAddress }
-            });
-            const hospitalPublicKey = res.data.publicKey;
+            console.log("selected Hospital:",selectedHospital);
+            const hospitalPublicKey = selectedHospital.publicKey;
             console.log('Hospital Public Key:', hospitalPublicKey);
 
             const encryptedKeys = await Promise.all(decryptedKeys.map(async (key) => {
                 return encryptAESKey(key,hospitalPublicKey);
             }));
             console.log('Re-encrypted Keys for Hospital:', encryptedKeys);
-            console.log(accessType);
             console.log("selectedfiles:",selectedFiles);
-            // Step 4: Backend API call
+
+            // Step 4: Blockchain call to grantAccess
+            console.log("---Calling AccessControl contract in BLockchain---");
+            const accessTypeEnum = accessType === 'read' ? 1 : accessType === 'write' ? 2 : 3;
+            await contracts.accessControl.grantAccess(
+                hospitalAddress,
+                accessTypeEnum,
+                selectedFiles,
+                encryptedKeys,
+                deadlineDifferenceSeconds,
+                { gasLimit: 5000000 }
+            );
+            console.log("Granted Permission successfully....");
+            // Step 5: Backend API call
+            console.log("---Making Backend call to store permission metadata---");
             if(accessType==='read'){
                 const grantData = {
                     hospitalUniqueId: selectedHospital.uniqueId,
@@ -160,7 +178,6 @@ const GrantPermission = () => {
                 });
             }
             else if(accessType==='write'){
-                console.log("inside else if")
                 const grantData = {
                     hospitalUniqueId: selectedHospital.uniqueId,
                     deadline: deadlineSeconds
@@ -182,18 +199,7 @@ const GrantPermission = () => {
                     headers: { Authorization: `Bearer ${token}` }
                 });
             }
-
-            console.log("in1")
-            // Step 5: Blockchain call to grantAccess
-            const accessTypeEnum = accessType === 'read' ? 1 : accessType === 'write' ? 2 : 3;
-            await contracts.accessControl.grantAccess(
-                hospitalAddress,
-                accessTypeEnum,
-                selectedFiles,
-                encryptedKeys,
-                deadlineSeconds,
-                { gasLimit: 5000000 }
-            );
+            console.log("Successfully saved MetaData....");
             alert('Permission granted successfully!');
             navigate('/dashboard');
         } catch (err) {

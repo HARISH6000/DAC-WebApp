@@ -7,6 +7,8 @@ import Home from './components/Home';
 import UploadFile from './components/UploadFile';
 import GrantPermission from './components/GrantPermission';
 import ValidationPage from './components/Validation';
+import RequestFile from './components/RequestFile';
+import ManageRequests from './components/ManageRequests';
 
 // ProtectedRoute component to restrict access
 const ProtectedRoute = ({ children }) => {
@@ -32,6 +34,14 @@ const App = () => {
                 <Route
                     path="/grant-permission"
                     element={<ProtectedRoute><GrantPermission /></ProtectedRoute>}
+                />
+                <Route
+                    path="/request-file"
+                    element={<ProtectedRoute><RequestFile /></ProtectedRoute>}
+                />
+                <Route
+                    path="/manage-requests"
+                    element={<ProtectedRoute><ManageRequests /></ProtectedRoute>}
                 />
                 <Route path="/" element={<Home />} />
             </Routes>

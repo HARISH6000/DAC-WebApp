@@ -118,18 +118,20 @@ const UploadFile = () => {
     }
 
     const handleUpload = async () => {
+        console.log("---Initiating Upload---");
         if (!file || (role === 'hospital' && !selectedPatient)) {
             setErrorMessage('Please select a file and, for hospitals, a patient.');
             return;
         }
 
         setLoading(true);
-        setErrorMessage(''); 
+        setErrorMessage('');
+        console.log("Retriving user details....")
         try {
             const res = await axios.get('http://localhost:5000/api/auth/user-details', {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            console.log("res.data:",res.data);
+            console.log("user-details:",res.data);
             const uid = res.data.uniqueId;
             var publicKey=res.data.publicKey;
             if(role==='hospital'){
@@ -137,6 +139,7 @@ const UploadFile = () => {
                 publicKey=selectedPatient.publicKey;
             }
             console.log("publicKey:",publicKey);
+            console.log("---Encrypting file---");
             // Encrypt the file
             const rawKey = Buffer.from(aesKey, 'hex');
             const key = await window.crypto.subtle.importKey(
@@ -169,18 +172,33 @@ const UploadFile = () => {
             console.log(`Would store as: ${jsonFileName}`);
 
             // If hospital, request write access
+            console.log("---Requesting Write Access Token---")
             let tx;
             let receipt;
             if (role === 'hospital' && contracts?.validation) {
                 const patientAddress = selectedPatient.publicAddress;
 
                 try {
-                    tx = await contracts.validation.requestFileWriteAccess(patientAddress, {
+                    tx = await contracts.validation.requestFileWriteAccessToken(patientAddress, {
                         gasLimit: 300000 // Manual gas limit to avoid UNPREDICTABLE_GAS_LIMIT
                     });
                     receipt = await tx.wait();
-                    console.log('Write Access Token Hash:', receipt);
+                    console.log('Transaction Receipt:', receipt);
                 } catch (err) {
+                    const revertReason = err.error?.error?.data?.reason || err.reason || 'Unknown error';
+                    setErrorMessage(`Failed to get write access: ${revertReason}`);
+                    throw err; // Stop execution
+                }
+            }else{
+                try{
+
+                    tx = await contracts.validation.requestOwnFilesWriteToken({
+                        gasLimit: 300000 // Manual gas limit to avoid UNPREDICTABLE_GAS_LIMIT
+                    });
+                    receipt = await tx.wait();
+                    console.log('Transaction Receipt:', receipt);
+
+                }catch(err){
                     const revertReason = err.error?.error?.data?.reason || err.reason || 'Unknown error';
                     setErrorMessage(`Failed to get write access: ${revertReason}`);
                     throw err; // Stop execution
@@ -189,22 +207,24 @@ const UploadFile = () => {
             
             const event = receipt.events.find(e => e.event === 'WriteAccessTokenGenerated');
             const tokenHash = event.args.tokenHash;
-            console.log('Write Access Token Hash:', tokenHash);
+            console.log('Write Access Token:', tokenHash);
 
+            console.log("---Signing the Token---")
             let signature=await signHash(tokenHash);
-            console.log("signature",signature);
+            console.log("signature:",signature);
 
+            console.log("---Encrypting the AES Key---")
             let encKey=encryptAESKey(publicKey);
-            console.log("encKey:",encKey);
-            const decodedData = JSON.parse(Buffer.from(encKey, "base64").toString());
-            console.log("decodeddata:",decodedData);
-            console.log("selectedPatient:",selectedPatient);
+            console.log("Encrypted AES Key:",encKey);
+            
+            console.log("---Uploading the Encrypted file---");
+            console.log("Sending Token, Signature, Encrypted File and Encrypted Key to the server...");
             // Add file to database
             let fileHashList=[fileHash];
             let keyList=[encKey];
             let fileDataList=[fileData];
             let uploadData={
-                uniqueId:selectedPatient.uniqueId,
+                uniqueId:role==='hospital'?selectedPatient.uniqueId:uid,
                 tokenHash:tokenHash,
                 signature:signature,
                 isWrite:true,
@@ -217,7 +237,7 @@ const UploadFile = () => {
                 headers: { Authorization: `Bearer ${token}` }
             });
 
-            console.log(response);
+            console.log("Response From Server:",response);
 
             uploadData = {
                 uniqueId: role === 'hospital' ? selectedPatient.uniqueId : uid,
@@ -229,6 +249,7 @@ const UploadFile = () => {
             });
 
             setEncryptedFile(encryptedHex);
+            console.log("File encrypted and added to database successfully! Check console for details.");
             alert('File encrypted and added to database successfully! Check console for details.');
             navigate('/dashboard');
         } catch (err) {

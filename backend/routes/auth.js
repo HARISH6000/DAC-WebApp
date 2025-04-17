@@ -160,5 +160,42 @@ router.get('/hospitals',async(req,res)=>{
   }
 });
 
+router.get('/patients',async(req,res)=>{
+  try{
+    const patients = await Patient.find();
+    res.json(patients);
+  }catch(err){
+      res.status(500);
+  }
+});
+
+
+router.get('/pub-details', async (req, res) => {
+  try {
+      const { publicAddress, role } = req.query;
+
+      if (!publicAddress || !role) {
+          return res.status(400).json({ error: 'Missing uid or role parameter' });
+      }
+
+      if (role !== 'patient' && role !== 'hospital') {
+          return res.status(400).json({ error: 'Invalid role. Must be "patient" or "hospital"' });
+      }
+
+      const user = role === 'patient'
+          ? await Patient.findOne({ publicAddress: publicAddress })
+          : await Hospital.findOne({ publicAddress: publicAddress });
+
+      if (!user) {
+          return res.status(404).json({ error: `No ${role} found with publicAddress: ${publicAddress}` });
+      }
+      
+      res.json(user);
+  } catch (err) {
+      console.error('Error fetching user details:', err);
+      res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 
 module.exports = router;

@@ -171,7 +171,7 @@ const contractABI = [
 ];
 
 // Replace with your deployed contract address
-const CONTRACT_ADDRESS = "0xF2B07abd243DE8B1BBfDC044a5d087CfB3Ac63A7";
+const CONTRACT_ADDRESS = "0x029C86e33ef49De0a3258bcCaB0E6AA97297cC69";
 
 const Signup = () => {
     const [role, setRole] = useState('');

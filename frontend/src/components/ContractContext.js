@@ -2,11 +2,11 @@ import { createContext, useContext, useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 
 // Replace with your deployed contract addresses
-const REGISTRATION_CONTRACT_ADDRESS = "0xF2B07abd243DE8B1BBfDC044a5d087CfB3Ac63A7";
-const REQUEST_CONTRACT_ADDRESS = "0x67C92b83F9B25ecC2525a5ac8f458b95689FDaE7";
-const ACCESS_CONTROL_CONTRACT_ADDRESS = "0x19139AC6b26437381c3B803fd3095785AdA8c66b";
-const VALIDATION_CONTRACT_ADDRESS = "0x7707676eA42aED91fb6DE77803db6148E6a50698";
-const FILE_REGISTRY_CONTRACT_ADDRESS = "0x0e439272d207A0129Ad1B2CbE5803dd788996077";
+const REGISTRATION_CONTRACT_ADDRESS = "0x029C86e33ef49De0a3258bcCaB0E6AA97297cC69";
+const REQUEST_CONTRACT_ADDRESS = "0x932514b10BE55084C80E0fd11DcD04de380e1B5c";
+const ACCESS_CONTROL_CONTRACT_ADDRESS = "0xE3Fef1272E85Fe09bFAb88D4Fee026F6c597C07F";
+const VALIDATION_CONTRACT_ADDRESS = "0x185787e1575F6Dc68cD99b8656e7093d15A146D2";
+const FILE_REGISTRY_CONTRACT_ADDRESS = "0x030b5cA4A4E6236b6Ebbb2c6815Ae772C2cD4c2F";
 
 // Registration contract ABI (unchanged from your provided code)
 const registrationABI = [
@@ -894,7 +894,7 @@ const ValidationABI = [
         "type": "string[]"
       }
     ],
-    "name": "requestFileAccess",
+    "name": "requestFileReadAccessToken",
     "outputs": [
       {
         "internalType": "bytes32",
@@ -913,7 +913,39 @@ const ValidationABI = [
         "type": "address"
       }
     ],
-    "name": "requestFileWriteAccess",
+    "name": "requestFileWriteAccessToken",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string[]",
+        "name": "fileHashes",
+        "type": "string[]"
+      }
+    ],
+    "name": "requestOwnFilesReadToken",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "requestOwnFilesWriteToken",
     "outputs": [
       {
         "internalType": "bytes32",
@@ -966,6 +998,11 @@ const ValidationABI = [
 ]; 
 const FileRegistryABI = [
   {
+    "inputs": [],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",
@@ -1007,6 +1044,30 @@ const FileRegistryABI = [
         "type": "string[]"
       }
     ],
+    "name": "doesFilesExist",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "entity",
+        "type": "address"
+      },
+      {
+        "internalType": "string[]",
+        "name": "fileHashes",
+        "type": "string[]"
+      }
+    ],
     "name": "getKeys",
     "outputs": [
       {
@@ -1016,6 +1077,19 @@ const FileRegistryABI = [
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address[]",
+        "name": "_allowedContract",
+        "type": "address[]"
+      }
+    ],
+    "name": "setAllowedContract",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   }
 ];

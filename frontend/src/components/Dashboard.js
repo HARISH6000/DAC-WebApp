@@ -3,19 +3,25 @@ import { useNavigate } from 'react-router-dom';
 import { useWallet } from './WalletContext';
 import { useContracts } from './ContractContext';
 import axios from 'axios';
+import { Buffer } from 'buffer';
+import crypto from 'crypto';
+import { ec as EC } from 'elliptic';
+import { ethers } from 'ethers';
+const ec = new EC("secp256k1");
 
 const Dashboard = () => {
     const { wallet, logout, token } = useWallet();
     const { contracts } = useContracts();
     const navigate = useNavigate();
-    const [role, setRole] = useState(null); // patient or hospital
-    const [files, setFiles] = useState([]); // Patient files or hospital patient files
+    const [role, setRole] = useState(null);
+    const [files, setFiles] = useState([]);
     const [files1, setFiles1] = useState([]);
-    const [hospitals, setHospitals] = useState([]); // Patient's shared hospitals
-    const [patients, setPatients] = useState([]); // Hospital's patients
-    const [selectedHospital, setSelectedHospital] = useState(null); // For patient: filter files by hospital
-    const [selectedPatient, setSelectedPatient] = useState(null); // For hospital: show patient files
+    const [hospitals, setHospitals] = useState([]);
+    const [patients, setPatients] = useState([]);
+    const [selectedHospital, setSelectedHospital] = useState(null);
+    const [selectedPatient, setSelectedPatient] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [refresh, setRefresh] = useState(false);
 
     useEffect(() => {
         const fetchRoleAndData = async () => {
@@ -45,6 +51,8 @@ const Dashboard = () => {
                     });
                     setPatients(patientsRes.data);
                 }
+                setSelectedHospital(null);
+                setSelectedPatient(null);
             } catch (err) {
                 console.error('Error fetching data:', err);
                 alert('Failed to load dashboard data.');
@@ -54,7 +62,7 @@ const Dashboard = () => {
         };
 
         fetchRoleAndData();
-    }, [token, wallet]);
+    }, [token, wallet, refresh]);
 
     const handleHospitalClick = async (hospital) => {
         setSelectedHospital(hospital);
@@ -79,8 +87,9 @@ const Dashboard = () => {
         try {
             const filesRes = await axios.get(
                 `http://localhost:5000/api/file/hospital/files?uniqueId=${patient.uniqueId}`,
-                { headers: { Authorization: `Bearer ${token}` }
-            });
+                {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
             setFiles1(filesRes.data);
         } catch (err) {
             console.error('Error fetching patient files:', err);
@@ -114,11 +123,261 @@ const Dashboard = () => {
     };
 
     const handleRequestFile = () => {
-        // To be implemented
+        navigate('/request-file');
     };
 
     const handleGrantPermission = () => {
         navigate('/grant-permission');
+    };
+
+    const signHash = async (tokenHash) => {
+        try {
+            const signature = await wallet.signMessage(ethers.utils.arrayify(tokenHash));
+            return signature;
+        } catch (error) {
+            console.error("Error signing hash:", error);
+            throw error;
+        }
+    };
+
+    const handleDownload = async (file, patient) => {
+        try {
+            console.log("---Initiating download---");
+            const fileList = [file.fileId];
+            let tx;
+            if (role === 'hospital') {
+                tx = await contracts.validation.requestFileReadAccessToken(patient.publicAddress, fileList, {
+                    gasLimit: 300000 // Manual gas limit to avoid UNPREDICTABLE_GAS_LIMIT
+                });
+            }
+            else {
+                tx = await contracts.validation.requestOwnFilesReadToken(fileList, {
+                    gasLimit: 300000 // Manual gas limit to avoid UNPREDICTABLE_GAS_LIMIT
+                });
+            }
+            const receipt = await tx.wait();
+            console.log("---Transaction Receipt For Token Generation---");
+            console.log(receipt);
+            const event = receipt.events.find(e => e.event === 'ReadAccessTokenGenerated');
+            const tokenHash = event.args.tokenHash;
+            console.log("---Read Access Token---");
+            console.log('Read Access Token Hash:', tokenHash);
+
+            console.log("---Initiating signing algorithm---");
+            let signature = await signHash(tokenHash);
+            console.log("signature:", signature);
+            const rawKeys = await contracts.fileRegistry.getKeys(wallet.address, fileList);
+            console.log("---Fetching Keys From File Registry---");
+            console.log('Encrypted Keys from FileRegistry:', rawKeys);
+
+            console.log("---Initiating Decryption of keys---");
+            const decryptedKeys = await Promise.all(rawKeys.map(async (encryptedKey) => {
+                const decodedData = JSON.parse(Buffer.from(encryptedKey, "base64").toString());
+                console.log("decoded key data:", decodedData);
+                const userPrivateKey = ec.keyFromPrivate(wallet.privateKey.substring(2), "hex");
+                const ephemeralPublicKey = ec.keyFromPublic(decodedData.ephemeralPublicKey, "hex").getPublic();
+                const sharedSecret = userPrivateKey.derive(ephemeralPublicKey);
+                const decryptionKey = crypto.createHash("sha256")
+                    .update(Buffer.from(sharedSecret.toArray()))
+                    .digest();
+                console.log("Derived Decryption Key:", decryptionKey.toString("hex"));
+
+                const decipher = crypto.createDecipheriv(
+                    "aes-256-gcm",
+                    decryptionKey,
+                    Buffer.from(decodedData.iv, "hex")
+                );
+                decipher.setAuthTag(Buffer.from(decodedData.authTag, "hex"));
+                let decryptedAESKey = decipher.update(decodedData.encryptedAESKey, "hex", "binary");
+                decryptedAESKey += decipher.final("binary");
+                return decryptedAESKey;
+            }));
+
+            console.log("Decrypted key:", decryptedKeys);
+
+            const fileHashes = [file.fileId];
+
+            const details = await contracts.registration.getParticipantDetails(wallet.address);
+
+            
+            console.log("---Initiating File Download---");
+            const response = await axios.post(
+                'http://localhost:5000/api/file/download',
+                {
+                    uniqueId: role === 'hospital' ? patient.uniqueId : details[0],
+                    hospital: wallet.address,
+                    patient: role === 'hospital' ? patient.publicAddress : wallet.address,
+                    fileHashes,
+                    tokenHash,
+                    signature,
+                },
+                {
+                    headers: { Authorization: `Bearer ${token}` }
+                }
+            );
+
+            const fileData = response.data.file;
+            console.log('File Data:', fileData);
+
+            console.log("---Initiating File Decryption---");
+            // Step 1: Import the key (assuming aesKey is the hex string used for encryption)
+            const rawKey = Buffer.from(decryptedKeys[0], 'hex');
+            const key = await window.crypto.subtle.importKey(
+                'raw',
+                rawKey,
+                { name: 'AES-GCM' },
+                false,
+                ['decrypt']
+            );
+
+            // Step 2: Convert iv and encryptedData from hex
+            const ivBuffer = Buffer.from(fileData.iv, 'hex');
+            const encryptedBuffer = Buffer.from(fileData.encryptedData, 'hex');
+
+            // Step 3: Decrypt the data
+            const decrypted = await window.crypto.subtle.decrypt(
+                { name: 'AES-GCM', iv: ivBuffer },
+                key,
+                encryptedBuffer
+            );
+
+            console.log("---Converting decrypted ArrayBuffer to Blob---");
+            // Step 4: Convert decrypted ArrayBuffer to Blob and trigger download
+            const blob = new Blob([decrypted], { type: fileData.mimeType });
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = fileData.fileName; // e.g., "pursuit_of_happyness_xlg.jpg"
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(url);
+            console.log("---File saved to local device---");
+
+        } catch (err) {
+            console.log("error:", err);
+        }
+    };
+
+    const handleRevokeAllAccess = async (hospital) => {
+        try {
+            console.log("---Revoking All Access---");
+            console.log("Making a Blockchain call....");
+            const tx = await contracts.accessControl.removeAllAcess(hospital.publicAddress);
+            const receipt = await tx.wait();
+            const details = await contracts.registration.getParticipantDetails(wallet.address);
+            console.log("receipt:", receipt);
+
+            console.log("Deleting All Access Permission data in the Backend....");
+            const response = await axios.delete('http://localhost:5000/api/file/patient/revoke-all-access', {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+                data: {
+                    hospitalId: hospital.uniqueId,
+                    patientId: details[0]
+                },
+            });
+
+            console.log("Response:",response);
+
+            setRefresh(true);
+            console.log("---Successfully Revoked All Access---");
+        } catch (err) {
+            console.log("error:", err);
+        }
+    };
+
+    const handleRevokeFileAccess = async (hospital,file) => {
+        try {
+            console.log("---Revoking File Access---");
+            const fileList=[file.fileId];
+            console.log("Making a Blockchain call....");
+            const tx = await contracts.accessControl.removeAccess(hospital.publicAddress,fileList);
+            const receipt = await tx.wait();
+            const details = await contracts.registration.getParticipantDetails(wallet.address);
+            console.log("receipt:", receipt);
+
+            console.log("Deleting File Access Permission data in the Backend....");
+            const response = await axios.delete('http://localhost:5000/api/file/patient/revoke-file-access', {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+                data: {
+                    hospitalId: hospital.uniqueId,
+                    patientId: details[0],
+                    fileId:file.fileId
+                },
+            });
+
+            console.log("Response:",response);
+
+            handleHospitalClick(hospital);
+            console.log("---Successfully Revoked File Access---");
+
+        } catch (err) {
+            console.log("error:", err);
+        }
+    };
+
+    const handleDelete = async (file, patient) => {
+        if (window.confirm("Are you sure you want to delete this file?")) {
+            try {
+                console.log("---Initiating File Deletion---");
+                const fileList = [file.fileId];
+                let tx;
+                let receipt;
+                console.log("Making a Blockchain call To generate Write Access Token....");
+                if (role === 'hospital') {
+                    tx = await contracts.validation.requestFileWriteAccessToken(patient.publicAddress, { gasLimit: 300000 });
+                    receipt = await tx.wait();
+                } else {
+                    tx = await contracts.validation.requestOwnFilesWriteToken({ gasLimit: 300000 });
+                    receipt = await tx.wait();
+                }
+                console.log('Receipt:', receipt);
+
+                const event = receipt.events.find(e => e.event === 'WriteAccessTokenGenerated');
+                const tokenHash = event.args.tokenHash;
+                console.log('Write Access Token:', tokenHash);
+
+                console.log("---Signing the Token---");
+                let signature = await signHash(tokenHash);
+                console.log("signature:", signature);
+
+                const details = await contracts.registration.getParticipantDetails(wallet.address);
+
+                console.log("---Backend call---");
+                console.log("Making a Backend call to delete the file by passing Token, signature and file Ids...");
+                const response = await axios.delete('http://localhost:5000/api/file/delete', {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                    data: {
+                        uniqueId: role === 'hospital' ? patient.uniqueId : details[0],
+                        fileList,
+                        tokenHash,
+                        signature,
+                        hospital: wallet.address,
+                        patient: role === 'hospital' ? patient.publicAddress : wallet.address,
+                    },
+                });
+
+                console.log('Success:', response.data);
+                setFiles(files.filter(f => f.fileId !== file.fileId));
+                console.log('---Successfully deleted the file---');
+            } catch (err) {
+                console.error('Error deleting file:', err);
+                alert('Failed to delete file.');
+            }
+        }
+    };
+
+    const handleManageRequest = async (file, patient) => {
+        navigate('/manage-requests');
     };
 
     return (
@@ -152,6 +411,9 @@ const Dashboard = () => {
                                 </button>
                             </>
                         )}
+                        <button onClick={handleManageRequest} style={buttonStyle}>
+                            Manage Requests
+                        </button>
                         <button onClick={handleLogout} style={buttonStyle}>
                             Logout
                         </button>
@@ -164,7 +426,21 @@ const Dashboard = () => {
                                 <ul style={listStyle}>
                                     {files.map(file => (
                                         <li key={file.fileId} style={listItemStyle}>
-                                            {file.fileName} (Uploaded: {new Date(file.uploadDate).toLocaleDateString()})
+                                            <span>{file.fileName} (Uploaded: {new Date(file.uploadDate).toLocaleDateString()})</span>
+                                            <div className='buttons'>
+                                                <button
+                                                    onClick={() => handleDownload(file)}
+                                                    style={{ ...buttonStyle, marginLeft: '10px', padding: '5px 10px' }}
+                                                >
+                                                    Download
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDelete(file)}
+                                                    style={{ ...buttonStyle, marginLeft: '0px', padding: '5px 10px' }}
+                                                >
+                                                    Delete
+                                                </button>
+                                            </div>
                                         </li>
                                     ))}
                                 </ul>
@@ -182,6 +458,12 @@ const Dashboard = () => {
                                             onClick={() => handleHospitalClick(hospital)}
                                         >
                                             {hospital.name} ({hospital.uniqueId})
+                                            <button
+                                                onClick={() => handleRevokeAllAccess(hospital)}
+                                                style={{ ...buttonStyle, marginLeft: '0px', padding: '5px 10px' }}
+                                            >
+                                                Revoke All Access
+                                            </button>
                                         </li>
                                     ))}
                                 </ul>
@@ -192,11 +474,25 @@ const Dashboard = () => {
                             {selectedHospital && (
                                 <div>
                                     <h3>Files Shared with {selectedHospital.name}</h3>
-                                    {files.length > 0 ? (
+                                    {files1.length > 0 ? (
                                         <ul style={listStyle}>
                                             {files1.map(file => (
                                                 <li key={file.fileId} style={listItemStyle}>
-                                                    {file.fileName}
+                                                    <span>{file.fileName}</span>
+                                                    <div>
+                                                        <button
+                                                            onClick={() => handleDownload(file)}
+                                                            style={{ ...buttonStyle, marginLeft: '10px', padding: '5px 10px' }}
+                                                        >
+                                                            Download
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleRevokeFileAccess(selectedHospital,file)}
+                                                            style={{ ...buttonStyle, marginLeft: '0px', padding: '5px 10px' }}
+                                                        >
+                                                            Revoke Access
+                                                        </button>
+                                                    </div>
                                                 </li>
                                             ))}
                                         </ul>
@@ -237,7 +533,21 @@ const Dashboard = () => {
                                         <ul style={listStyle}>
                                             {files1.map(file => (
                                                 <li key={file.fileId} style={listItemStyle}>
-                                                    {file.fileName}
+                                                    <span>{file.fileName}</span>
+                                                    <div className='buttons'>
+                                                        <button
+                                                            onClick={() => handleDownload(file, selectedPatient)}
+                                                            style={{ ...buttonStyle, marginLeft: '10px', padding: '5px 10px' }}
+                                                        >
+                                                            Download
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDelete(file, selectedPatient)}
+                                                            style={{ ...buttonStyle, marginLeft: '0px', padding: '5px 10px' }}
+                                                        >
+                                                            Delete
+                                                        </button>
+                                                    </div>
                                                 </li>
                                             ))}
                                         </ul>
@@ -289,7 +599,10 @@ const listStyle = {
 
 const listItemStyle = {
     padding: '10px',
-    borderBottom: '1px solid #ccc'
+    borderBottom: '1px solid #ccc',
+    display: 'flex', // Flexbox to align file info and button
+    justifyContent: 'space-between', // Space between file info and button
+    alignItems: 'center' // Center vertically
 };
 
 const clickableListItemStyle = {
