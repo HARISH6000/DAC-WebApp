@@ -295,9 +295,9 @@ const Signup = () => {
     };
 
     return (
-        <form onSubmit={handleSubmit}>
-            <label>Role:</label>
-            <select name="role" value={role} onChange={handleRoleChange} required>
+      <div style={formContainerStyle}>
+        <form style={formStyle} onSubmit={handleSubmit}>
+            <select style={selectStyle} name="role" value={role} onChange={handleRoleChange} required>
                 <option value="">Select Role</option>
                 <option value="patient">Patient</option>
                 <option value="hospital">Hospital</option>
@@ -306,6 +306,7 @@ const Signup = () => {
             {role && (
                 <>
                     <input
+                        style={inputStyle}
                         type="text"
                         name="name"
                         placeholder="Name"
@@ -314,6 +315,7 @@ const Signup = () => {
                         required
                     />
                     <input
+                        style={inputStyle}
                         type="email"
                         name="email"
                         placeholder="Email"
@@ -322,6 +324,7 @@ const Signup = () => {
                         required
                     />
                     <input
+                        style={inputStyle}
                         type="text"
                         name="phone"
                         placeholder="Phone"
@@ -330,6 +333,7 @@ const Signup = () => {
                         required
                     />
                     <input
+                        style={inputStyle}
                         type="text"
                         name="address"
                         placeholder="Address"
@@ -340,6 +344,7 @@ const Signup = () => {
 
                     {role === 'patient' && (
                         <>
+                            <label>D.O.B:</label>
                             <input
                                 type="date"
                                 name="dateOfBirth"
@@ -347,13 +352,15 @@ const Signup = () => {
                                 value={formData.dateOfBirth}
                                 onChange={handleChange}
                                 required
+                                style={inputStyle}
                             />
-                            <label>Blood Group:</label>
+                            
                             <select
                                 name="bloodGroup"
                                 value={formData.bloodGroup}
                                 onChange={handleChange}
                                 required
+                                style={selectStyle}
                             >
                                 <option value="">Select Blood Group</option>
                                 <option value="A+">A+</option>
@@ -376,6 +383,7 @@ const Signup = () => {
                             value={formData.licenseNumber}
                             onChange={handleChange}
                             required
+                            style={inputStyle}
                         />
                     )}
 
@@ -386,6 +394,7 @@ const Signup = () => {
                         value={formData.password}
                         onChange={handleChange}
                         required
+                        style={inputStyle}
                     />
                     <input
                         type="text"
@@ -394,13 +403,65 @@ const Signup = () => {
                         value={formData.privateKey}
                         onChange={handleChange}
                         required
+                        style={inputStyle}
                     />
 
-                    <button type="submit">Signup</button>
+                    <button style={buttonStyle} type="submit">Signup</button>
                 </>
             )}
         </form>
+        </div>
     );
+};
+
+
+const formContainerStyle = {
+  minHeight: '90vh', 
+  display: 'flex', 
+  justifyContent: 'center', 
+  alignItems: 'center', 
+  padding: '20px',
+  maxWidth: '400px',
+  margin: '0 auto'
+};
+
+const formStyle = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '15px',
+  width: '100%' 
+};
+
+const labelStyle = {
+  fontSize: '16px',
+  color: '#333'
+};
+
+const selectStyle = {
+  padding: '10px',
+  border: '1px solid #ccc',
+  borderRadius: '4px',
+  fontSize: '16px',
+  backgroundColor: '#f9f9f9',
+  cursor: 'pointer'
+};
+
+const inputStyle = {
+  padding: '10px',
+  border: '1px solid #ccc',
+  borderRadius: '4px',
+  fontSize: '16px',
+  backgroundColor: '#f9f9f9'
+};
+
+const buttonStyle = {
+  padding: '10px',
+  backgroundColor: '#007BFF',
+  color: 'white',
+  border: 'none',
+  borderRadius: '4px',
+  cursor: 'pointer',
+  fontSize: '16px'
 };
 
 export default Signup;

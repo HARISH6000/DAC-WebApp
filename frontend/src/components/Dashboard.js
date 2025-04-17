@@ -101,7 +101,7 @@ const Dashboard = () => {
 
     const handleLogout = () => {
         logout();
-        navigate('/login');
+        navigate('/');
     };
 
     const handleGetParticipantDetails = async () => {
@@ -368,6 +368,7 @@ const Dashboard = () => {
 
                 console.log('Success:', response.data);
                 setFiles(files.filter(f => f.fileId !== file.fileId));
+                setFiles1(files1.filter(f => f.fileId !== file.fileId));
                 console.log('---Successfully deleted the file---');
             } catch (err) {
                 console.error('Error deleting file:', err);

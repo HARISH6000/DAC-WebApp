@@ -60,33 +60,106 @@ const Login = () => {
     };
 
     return (
-        <form onSubmit={handleSubmit}>
-            <label>Role:</label>
-            <select name="role" value={formData.role} onChange={handleChange} required>
-                <option value="">Select Role</option>
-                <option value="patient">Patient</option>
-                <option value="hospital">Hospital</option>
-            </select>
-
-            <input
-                type="email"
-                name="email"
-                placeholder="Email"
-                value={formData.email}
-                onChange={handleChange}
-                required
-            />
-            <input
-                type="password"
-                name="password"
-                placeholder="Password"
-                value={formData.password}
-                onChange={handleChange}
-                required
-            />
-            <button type="submit">Login</button>
-        </form>
+        <div style={formContainerStyle}>
+            <form style={formStyle} onSubmit={handleSubmit}>
+                <select
+                    style={selectStyle}
+                    name="role"
+                    value={formData.role}
+                    onChange={handleChange}
+                    required
+                >
+                    <option value="">Select Role</option>
+                    <option value="patient">Patient</option>
+                    <option value="hospital">Hospital</option>
+                </select>
+                <input
+                    style={inputStyle}
+                    type="email"
+                    name="email"
+                    placeholder="Email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    required
+                />
+                <input
+                    style={inputStyle}
+                    type="password"
+                    name="password"
+                    placeholder="Password"
+                    value={formData.password}
+                    onChange={handleChange}
+                    required
+                />
+                <button style={buttonStyle} type="submit">
+                    Login
+                </button>
+            </form>
+        </div>
     );
+};
+
+// Inline styles for the login form
+const formContainerStyle = {
+    minHeight: '90vh', // Full viewport height
+    display: 'flex', // Flexbox for centering
+    justifyContent: 'center', // Center horizontally
+    alignItems: 'center', // Center vertically
+    padding: '20px',
+    maxWidth: '400px',
+    margin: '0 auto'
+};
+
+const formStyle = {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '15px',
+    width: '100%'
+};
+
+const selectStyle = {
+    padding: '10px',
+    border: '1px solid #ccc',
+    borderRadius: '4px',
+    fontSize: '16px',
+    backgroundColor: '#f9f9f9',
+    cursor: 'pointer',
+    transition: 'border-color 0.2s',
+    ':focus': {
+        outline: 'none',
+        borderColor: '#007BFF'
+    }
+};
+
+const inputStyle = {
+    padding: '10px',
+    border: '1px solid #ccc',
+    borderRadius: '4px',
+    fontSize: '16px',
+    backgroundColor: '#f9f9f9',
+    transition: 'border-color 0.2s',
+    ':focus': {
+        outline: 'none',
+        borderColor: '#007BFF'
+    }
+};
+
+const placeholderStyle = {
+    color: '#999'
+};
+
+const buttonStyle = {
+    padding: '10px',
+    backgroundColor: '#007BFF',
+    color: 'white',
+    border: 'none',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '16px',
+    transition: 'background-color 0.2s',
+    ':hover': {
+        backgroundColor: '#0056b3'
+    }
 };
 
 export default Login;
